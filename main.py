@@ -312,7 +312,7 @@ if early_stop:
     callbacks.append(es_callback)
 
 model.fit(x=train_dataset,
-          epochs=100,  #### set repeat in training dataset
+          epochs=100,  # set repeat in training dataset
           steps_per_epoch=len(train_gen),
           validation_data=valid_dataset,
           validation_steps=len(valid_gen),
@@ -325,10 +325,12 @@ model.fit(x=train_dataset,
 
 # model.load_weights('/path/to/checkpoint')  # use this if you want to restore saved model
 
-#eval_out = model.evaluate(x=test_dataset,steps=len(test_gen),verbose=0)
+# eval_out = model.evaluate(x=test_dataset,steps=len(test_gen),verbose=0)
 
-#print(eval_out)
+# print(eval_out)
+
 from PIL import Image
+
 shoe_img = Image.open("/Users/Stefano/anndl/data/New_Classification_Dataset/test/IMG_32.jpg").convert('L')
 
 shoe_arr = np.expand_dims(np.array(shoe_img), 0)
