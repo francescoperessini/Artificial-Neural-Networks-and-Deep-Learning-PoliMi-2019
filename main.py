@@ -1,12 +1,11 @@
 import os
 import tensorflow as tf
 import numpy as np
-
-# Set the seed for random operations.
-# This let our experiments to be reproducible.
+import os
+from datetime import datetime
+from keras.preprocessing.image import ImageDataGenerator
 from PIL import Image
 from keras.layers import Flatten
-
 from utils.csv_builder import create_csv
 
 SEED = 1234
@@ -67,28 +66,28 @@ img_w = 256
 
 num_classes = 20
 
-decide_class_indices = False
+decide_class_indices = True
 if decide_class_indices:
-    classes = ['airplanes',              # 0
-               'bear',                   # 1
-               'calculator',             # 2
-               'computer-monitor',       # 3
-               'fireworks',              # 4
-               'galaxy',                 # 5
-               'grand-piano',            # 6
-               'kangaroo',               # 7
-               'laptop',                 # 8
-               'lightbulb',              # 9
-               'lightning',              # 10
-               'mountain-bike',          # 11
-               'owl',                    # 12
-               'school-bus',             # 13
-               'sheet-music',            # 14
-               'skyscraper',             # 15
-               'sword',                  # 16
-               't-shirt',                # 17
-               'waterfall',              # 18
-               'wine-bottle']            # 19
+    classes = ['owl',              # 0
+               'galaxy',                   # 1
+               'lightning',             # 2
+               'wine-bottle',       # 3
+               't-shirt',              # 4
+               'waterfall',                 # 5
+               'sword',            # 6
+               'school-bus',               # 7
+               'calculator',                 # 8
+               'sheet-music',              # 9
+               'airplanes',              # 10
+               'lightbulb',          # 11
+               'skyscraper',                    # 12
+               'mountain-bike',             # 13
+               'fireworks',            # 14
+               'computer-monitor',             # 15
+               'bear',                  # 16
+               'grand-piano',                # 17
+               'kangaroo',              # 18
+               'laptop']            # 19
 else:
     classes = None
 
@@ -121,30 +120,10 @@ test_gen = test_data_gen.flow_from_directory(test_dir,
 
 # Create Dataset objects
 # ----------------------
-
 # Training
 train_dataset = tf.data.Dataset.from_generator(lambda: train_gen,
                                                output_types=(tf.float32, tf.float32),
                                                output_shapes=([None, img_h, img_w, 3], [None, num_classes]))
-
-# Shuffle (Already done in generator..)
-# train_dataset = train_dataset.shuffle(buffer_size=len(train_gen))
-
-# Normalize images (Already done in generator..)
-# def normalize_img(x_, y_):
-#     return tf.cast(x_, tf.float32) / 255., y_
-
-# train_dataset = train_dataset.map(normalize_img)
-
-# 1-hot encoding <- for categorical cross entropy (Already done in generator..)
-# def to_categorical(x_, y_):
-#     return x_, tf.one_hot(y_, depth=10)
-
-# train_dataset = train_dataset.map(to_categorical)
-
-# Divide in batches (Already done in generator..)
-# train_dataset = train_dataset.batch(bs)
-
 # Repeat
 # Without calling the repeat function the dataset
 # will be empty after consuming all the images
@@ -168,15 +147,6 @@ test_dataset = tf.data.Dataset.from_generator(lambda: test_gen,
 # Repeat
 test_dataset = valid_dataset.repeat()
 
-# print(train_gen.class_indices)
-
-# Keras Model subclassing
-# -----------------------
-
-# Please note that there are many ways to implement a CNN
-# Here subclassing is used just for teaching purposes, but you
-# can simply write every single layer as usual using Model or Sequential..
-
 # Create convolutional block
 class ConvBlock(tf.keras.Model):
     def __init__(self, num_filters):
@@ -195,8 +165,6 @@ class ConvBlock(tf.keras.Model):
         return x
 
 
-# Create Model
-# ------------
 
 depth = 5
 start_f = 8
@@ -225,132 +193,91 @@ class CNNClassifier(tf.keras.Model):
         return x
 
 
-# Create Model instance
-model = CNNClassifier(depth=depth,
-                      start_f=start_f,
-                      num_classes=num_classes)
-# Build Model (Required)
-model.build(input_shape=(8, img_h, img_w, 3))
+checkpoint_path = "training_1/cp.ckpt"
+checkpoint_dir = os.path.dirname(checkpoint_path)
+print("DIR: " + checkpoint_dir)
+training = False
 
-# Visualize created model as a table
-model.feature_extractor.summary()
+if training:
+    # Create Model instance
+    model = CNNClassifier(depth=depth,
+                          start_f=start_f,
+                          num_classes=num_classes)
+    # Build Model (Required)
+    model.build(input_shape=(8, img_h, img_w, 3))
 
-# Visualize initialized weights
-model.weights
+    loss = tf.keras.losses.CategoricalCrossentropy()
 
-# Optimization params
-# -------------------
+    lr = 1e-3
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
-# Loss
-loss = tf.keras.losses.CategoricalCrossentropy()
+    metrics = ['accuracy']
+    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
-# learning rate
-lr = 1e-3
-optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-# -------------------
+    cwd = os.getcwd()
 
-# Validation metrics
-# ------------------
+    exps_dir = os.path.join(cwd, 'classification_experiments')
+    if not os.path.exists(exps_dir):
+        os.makedirs(exps_dir)
 
-metrics = ['accuracy']
-# ------------------
+    now = datetime.now().strftime('%b%d_%H-%M-%S')
+    model_name = 'CNN'
+    exp_dir = os.path.join(exps_dir, model_name + '_' + str(now))
+    if not os.path.exists(exp_dir):
+        os.makedirs(exp_dir)
 
-# Compile Model
-model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+    callbacks = []
 
-import os
-from datetime import datetime
+    ckpt_dir = os.path.join(exp_dir, 'ckpts')
+    if not os.path.exists(ckpt_dir):
+        os.makedirs(ckpt_dir)
+    print("-------"+os.path.join(ckpt_dir, checkpoint_path))
+    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath="trained_model.ckpt",
+                                                       save_weights_only=True,
+                                                       verbose=1)  # False to save the model directly
+    callbacks.append(ckpt_callback)
 
-# from tensorflow.compat.v1 import ConfigProto
-# from tensorflow.compat.v1 import InteractiveSession
+    early_stop = True
+    if early_stop:
+        es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
+        callbacks.append(es_callback)
 
-# config = ConfigProto()
-# config.gpu_options.allow_growth = True
-# session = InteractiveSession(config=config)
+    model.fit(x=train_dataset,
+              epochs=100,  # set repeat in training dataset
+              steps_per_epoch=len(train_gen),
+              validation_data=valid_dataset,
+              validation_steps=len(valid_gen),
+              callbacks=callbacks)
 
-cwd = os.getcwd()
 
-exps_dir = os.path.join(cwd, 'classification_experiments')
-if not os.path.exists(exps_dir):
-    os.makedirs(exps_dir)
+else:
+    model = CNNClassifier(depth=depth,
+                          start_f=start_f,
+                          num_classes=num_classes)
+    model.load_weights("trained_model.ckpt")
 
-now = datetime.now().strftime('%b%d_%H-%M-%S')
 
-model_name = 'CNN'
+    path = os.getcwd()
+    dataset_dir = os.path.join(path, 'data/New_Classification_Dataset/test')
+    sub_files = os.listdir(dataset_dir)
 
-exp_dir = os.path.join(exps_dir, model_name + '_' + str(now))
-if not os.path.exists(exp_dir):
-    os.makedirs(exp_dir)
+    results = {}
 
-callbacks = []
+    for file in sub_files:
+        test_image = os.path.join(path, 'data/New_Classification_Dataset/test/')
+        test_image = os.path.join(test_image, file)
+        img = Image.open(test_image).convert('RGB')
+        img = img.resize((256, 256))
+        arr = np.expand_dims(np.array(img), 0)
 
-# Model checkpoint
-# ----------------
-ckpt_dir = os.path.join(exp_dir, 'ckpts')
-if not os.path.exists(ckpt_dir):
-    os.makedirs(ckpt_dir)
+        out_softmax = model.predict(x=arr / 255.)
 
-ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath=os.path.join(ckpt_dir, 'cp_{epoch:02d}.ckpt'),
-                                                   save_weights_only=True)  # False to save the model directly
-callbacks.append(ckpt_callback)
+        predicted_class = tf.argmax(out_softmax, 1)
+        print(file)
+        clas = predicted_class.numpy()[0]
+        print(clas)
+        print(classes[clas])
+        print("-------------")
+        results[file] = clas
 
-# Visualize Learning on Tensorboard
-# ---------------------------------
-tb_dir = os.path.join(exp_dir, 'tb_logs')
-if not os.path.exists(tb_dir):
-    os.makedirs(tb_dir)
-
-# By default shows losses and metrics for both training and validation
-tb_callback = tf.keras.callbacks.TensorBoard(log_dir=tb_dir,
-                                             profile_batch=0,
-                                             histogram_freq=1)  # if 1 shows weights histograms
-callbacks.append(tb_callback)
-
-# Early Stopping
-# --------------
-early_stop = True
-if early_stop:
-    es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
-    callbacks.append(es_callback)
-
-model.fit(x=train_dataset,
-          epochs=100,  # set repeat in training dataset
-          steps_per_epoch=len(train_gen),
-          validation_data=valid_dataset,
-          validation_steps=len(valid_gen),
-          callbacks=callbacks)
-
-# How to visualize Tensorboard
-
-# 1. tensorboard --logdir EXPERIMENTS_DIR --port PORT     <- from terminal
-# 2. localhost:PORT   <- in your browser
-
-# model.load_weights('/path/to/checkpoint')  # use this if you want to restore saved model
-
-# eval_out = model.evaluate(x=test_dataset, steps=len(test_gen), verbose=0)
-
-# eval_out
-
-# Compute output given x
-
-path = os.getcwd()
-dataset_dir = os.path.join(path, 'data/New_Classification_Dataset/test')
-sub_files = os.listdir(dataset_dir)
-
-results = {}
-
-for file in sub_files:
-    test_image = os.path.join(path, 'data/New_Classification_Dataset/test/')
-    test_image = os.path.join(test_image, file)
-    img = Image.open(test_image).convert('RGB')
-    img = img.resize((256, 256))
-    arr = np.expand_dims(np.array(img), 0)
-
-    out_softmax = model.predict(x=arr / 255.)
-
-    # Get predicted class as the index corresponding to the maximum value in the vector probability
-    predicted_class = tf.argmax(out_softmax, 1)
-    print("predicted-class: " + predicted_class[0])
-    results[file] = predicted_class[0]
-
-create_csv(results)
+    create_csv(results)
