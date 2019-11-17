@@ -2,9 +2,13 @@ import os
 import tensorflow as tf
 import numpy as np
 
-
 # Set the seed for random operations.
 # This let our experiments to be reproducible.
+from PIL import Image
+from keras.layers import Flatten
+
+from utils.csv_builder import create_csv
+
 SEED = 1234
 tf.random.set_seed(SEED)
 
@@ -27,8 +31,8 @@ if gpus:
 
 # ImageDataGenerator
 # ------------------
-from keras.preprocessing.image import ImageDataGenerator
 
+from keras.preprocessing.image import ImageDataGenerator
 
 apply_data_augmentation = False
 
@@ -61,33 +65,32 @@ bs = 8
 img_h = 256
 img_w = 256
 
-num_classes=20
+num_classes = 20
 
 decide_class_indices = False
-
 if decide_class_indices:
-    classes = ['airplanes',         # 0
-               'bear',              # 1
-               'calculator',        # 2
-               'computer-monitor',  # 3
-               'fireworks',         # 4
-               'galaxy',            # 5
-               'grand-piano',       # 6
-               'kangaroo',          # 7
-               'laptop',            # 8
-               'lightbulb',         # 9
-               'lightning',         # 10
-               'mountain-bike',     # 11
-               'owl',               # 12
-               'school-bus',        # 13
-               'sheet-music',       # 14
-               'skyscraper',        # 15
-               'sword',             # 16
-               't-shirt',           # 17
-               'waterfall',         # 18
-               'wine-bottle']       # 19
+    classes = ['airplanes',              # 0
+               'bear',                   # 1
+               'calculator',             # 2
+               'computer-monitor',       # 3
+               'fireworks',              # 4
+               'galaxy',                 # 5
+               'grand-piano',            # 6
+               'kangaroo',               # 7
+               'laptop',                 # 8
+               'lightbulb',              # 9
+               'lightning',              # 10
+               'mountain-bike',          # 11
+               'owl',                    # 12
+               'school-bus',             # 13
+               'sheet-music',            # 14
+               'skyscraper',             # 15
+               'sword',                  # 16
+               't-shirt',                # 17
+               'waterfall',              # 18
+               'wine-bottle']            # 19
 else:
-    classes=None
+    classes = None
 
 # Training
 training_dir = os.path.join(dataset_dir, 'training')
@@ -165,7 +168,7 @@ test_dataset = tf.data.Dataset.from_generator(lambda: test_gen,
 # Repeat
 test_dataset = valid_dataset.repeat()
 
-print(train_gen.class_indices)
+# print(train_gen.class_indices)
 
 # Keras Model subclassing
 # -----------------------
@@ -227,7 +230,7 @@ model = CNNClassifier(depth=depth,
                       start_f=start_f,
                       num_classes=num_classes)
 # Build Model (Required)
-model.build(input_shape=(None, img_h, img_w, 3))
+model.build(input_shape=(8, img_h, img_w, 3))
 
 # Visualize created model as a table
 model.feature_extractor.summary()
@@ -308,7 +311,6 @@ callbacks.append(tb_callback)
 early_stop = True
 if early_stop:
     es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
-
     callbacks.append(es_callback)
 
 model.fit(x=train_dataset,
@@ -325,20 +327,30 @@ model.fit(x=train_dataset,
 
 # model.load_weights('/path/to/checkpoint')  # use this if you want to restore saved model
 
-# eval_out = model.evaluate(x=test_dataset,steps=len(test_gen),verbose=0)
+# eval_out = model.evaluate(x=test_dataset, steps=len(test_gen), verbose=0)
 
-# print(eval_out)
+# eval_out
 
-from PIL import Image
+# Compute output given x
 
-shoe_img = Image.open("/Users/Stefano/anndl/data/New_Classification_Dataset/test/IMG_32.jpg").convert('L')
+path = os.getcwd()
+dataset_dir = os.path.join(path, 'data/New_Classification_Dataset/test')
+sub_files = os.listdir(dataset_dir)
 
-shoe_arr = np.expand_dims(np.array(shoe_img), 0)
+results = {}
 
-out_softmax = model.predict(x=shoe_arr / 255.)
+for file in sub_files:
+    test_image = os.path.join(path, 'data/New_Classification_Dataset/test/')
+    test_image = os.path.join(test_image, file)
+    img = Image.open(test_image).convert('RGB')
+    img = img.resize((256, 256))
+    arr = np.expand_dims(np.array(img), 0)
 
-out_softmax = tf.keras.activations.softmax(tf.convert_to_tensor(out_softmax))
+    out_softmax = model.predict(x=arr / 255.)
 
-predicted_class = tf.argmax(out_softmax, 1)
+    # Get predicted class as the index corresponding to the maximum value in the vector probability
+    predicted_class = tf.argmax(out_softmax, 1)
+    print("predicted-class: " + predicted_class[0])
+    results[file] = predicted_class[0]
 
-print(predicted_class)
+create_csv(results)
