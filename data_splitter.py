@@ -32,7 +32,6 @@ def remove():
 
 ratio = [0.2, 0.8]
 
-
 # create root folder:
 #   -training       ---> split
 #   -validation     ---> split

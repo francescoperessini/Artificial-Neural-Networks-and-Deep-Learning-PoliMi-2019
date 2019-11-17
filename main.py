@@ -50,7 +50,8 @@ test_data_gen = ImageDataGenerator(rescale=1. / 255)
 
 # Create generators to read images from dataset directory
 # -------------------------------------------------------
-dataset_dir = os.path.join(cwd, 'data/New_Classification_Dataset')
+dataset_relative_dir = 'data/New_Classification_Dataset'
+dataset_dir = os.path.join(cwd, dataset_relative_dir)
 
 # Batch size
 bs = 8
@@ -142,6 +143,7 @@ test_dataset = tf.data.Dataset.from_generator(lambda: test_gen,
 # Repeat
 test_dataset = valid_dataset.repeat()
 
+
 # Create convolutional block
 class ConvBlock(tf.keras.Model):
     def __init__(self, num_filters):
@@ -160,10 +162,10 @@ class ConvBlock(tf.keras.Model):
         return x
 
 
-
 depth = 5
 start_f = 8
 num_classes = 20
+
 
 class CNNClassifier(tf.keras.Model):
     def __init__(self, depth, start_f, num_classes):
@@ -189,8 +191,14 @@ class CNNClassifier(tf.keras.Model):
 
 # Set to True to Train
 # Set to False to Evaluate
+# -!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!
+# -!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!
 training = False
+# -!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!
+# -!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!
 
+
+weigth_file = "trained_model/trained_model.ckpt"
 if training:
     # Create Model instance
     model = CNNClassifier(depth=depth,
@@ -209,7 +217,7 @@ if training:
 
     callbacks = []
 
-    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath="trained_model.ckpt",
+    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath= weigth_file,
                                                        save_weights_only=True,
                                                        verbose=1)  # False to save the model directly
     callbacks.append(ckpt_callback)
@@ -232,10 +240,11 @@ else:
                           num_classes=num_classes)
 
     # Load Weights
-    model.load_weights("trained_model.ckpt")
+    model.load_weights(weigth_file)
 
     # Get all the images in the test set, resize them and predict the label
     path = os.getcwd()
+
     dataset_dir = os.path.join(path, 'data/New_Classification_Dataset/test')
     sub_files = os.listdir(dataset_dir)
 
