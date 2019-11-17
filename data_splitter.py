@@ -30,7 +30,7 @@ def remove():
         print("Nothing to delete...")
 
 
-ratio = [0.25, 0.75]
+ratio = [0.2, 0.8]
 
 
 # create root folder:

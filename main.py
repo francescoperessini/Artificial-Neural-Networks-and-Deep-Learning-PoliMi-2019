@@ -1,11 +1,7 @@
-import os
 import tensorflow as tf
 import numpy as np
 import os
-from datetime import datetime
-from keras.preprocessing.image import ImageDataGenerator
 from PIL import Image
-from keras.layers import Flatten
 from utils.csv_builder import create_csv
 
 SEED = 1234
@@ -25,7 +21,6 @@ if gpus:
         logical_gpus = tf.config.experimental.list_logical_devices('GPU')
         print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
     except RuntimeError as e:
-        # Memory growth must be set before GPUs have been initialized
         print(e)
 
 # ImageDataGenerator
@@ -33,7 +28,7 @@ if gpus:
 
 from keras.preprocessing.image import ImageDataGenerator
 
-apply_data_augmentation = False
+apply_data_augmentation = True
 
 # Create training ImageDataGenerator object
 if apply_data_augmentation:
@@ -68,25 +63,25 @@ num_classes = 20
 
 decide_class_indices = True
 if decide_class_indices:
-    classes = ['owl',              # 0
-               'galaxy',                   # 1
-               'lightning',             # 2
+    classes = ['owl',               # 0
+               'galaxy',            # 1
+               'lightning',         # 2
                'wine-bottle',       # 3
-               't-shirt',              # 4
-               'waterfall',                 # 5
-               'sword',            # 6
-               'school-bus',               # 7
-               'calculator',                 # 8
-               'sheet-music',              # 9
-               'airplanes',              # 10
-               'lightbulb',          # 11
-               'skyscraper',                    # 12
-               'mountain-bike',             # 13
-               'fireworks',            # 14
-               'computer-monitor',             # 15
-               'bear',                  # 16
-               'grand-piano',                # 17
-               'kangaroo',              # 18
+               't-shirt',           # 4
+               'waterfall',         # 5
+               'sword',             # 6
+               'school-bus',        # 7
+               'calculator',        # 8
+               'sheet-music',       # 9
+               'airplanes',         # 10
+               'lightbulb',         # 11
+               'skyscraper',        # 12
+               'mountain-bike',     # 13
+               'fireworks',         # 14
+               'computer-monitor',  # 15
+               'bear',              # 16
+               'grand-piano',       # 17
+               'kangaroo',          # 18
                'laptop']            # 19
 else:
     classes = None
@@ -170,7 +165,6 @@ depth = 5
 start_f = 8
 num_classes = 20
 
-
 class CNNClassifier(tf.keras.Model):
     def __init__(self, depth, start_f, num_classes):
         super(CNNClassifier, self).__init__()
@@ -193,9 +187,8 @@ class CNNClassifier(tf.keras.Model):
         return x
 
 
-checkpoint_path = "training_1/cp.ckpt"
-checkpoint_dir = os.path.dirname(checkpoint_path)
-print("DIR: " + checkpoint_dir)
+# Set to True to Train
+# Set to False to Evaluate
 training = False
 
 if training:
@@ -203,35 +196,19 @@ if training:
     model = CNNClassifier(depth=depth,
                           start_f=start_f,
                           num_classes=num_classes)
+
     # Build Model (Required)
     model.build(input_shape=(8, img_h, img_w, 3))
-
     loss = tf.keras.losses.CategoricalCrossentropy()
-
     lr = 1e-3
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
+    # Compile Model
     metrics = ['accuracy']
     model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
-    cwd = os.getcwd()
-
-    exps_dir = os.path.join(cwd, 'classification_experiments')
-    if not os.path.exists(exps_dir):
-        os.makedirs(exps_dir)
-
-    now = datetime.now().strftime('%b%d_%H-%M-%S')
-    model_name = 'CNN'
-    exp_dir = os.path.join(exps_dir, model_name + '_' + str(now))
-    if not os.path.exists(exp_dir):
-        os.makedirs(exp_dir)
-
     callbacks = []
 
-    ckpt_dir = os.path.join(exp_dir, 'ckpts')
-    if not os.path.exists(ckpt_dir):
-        os.makedirs(ckpt_dir)
-    print("-------"+os.path.join(ckpt_dir, checkpoint_path))
     ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath="trained_model.ckpt",
                                                        save_weights_only=True,
                                                        verbose=1)  # False to save the model directly
@@ -249,14 +226,15 @@ if training:
               validation_steps=len(valid_gen),
               callbacks=callbacks)
 
-
 else:
     model = CNNClassifier(depth=depth,
                           start_f=start_f,
                           num_classes=num_classes)
+
+    # Load Weights
     model.load_weights("trained_model.ckpt")
 
-
+    # Get all the images in the test set, resize them and predict the label
     path = os.getcwd()
     dataset_dir = os.path.join(path, 'data/New_Classification_Dataset/test')
     sub_files = os.listdir(dataset_dir)
@@ -273,11 +251,8 @@ else:
         out_softmax = model.predict(x=arr / 255.)
 
         predicted_class = tf.argmax(out_softmax, 1)
-        print(file)
-        clas = predicted_class.numpy()[0]
-        print(clas)
-        print(classes[clas])
-        print("-------------")
-        results[file] = clas
+
+        class_name = predicted_class.numpy()[0]
+        results[file] = class_name
 
     create_csv(results)
