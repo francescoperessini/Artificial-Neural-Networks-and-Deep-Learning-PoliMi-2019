@@ -3,6 +3,8 @@ import numpy as np
 import os
 from PIL import Image
 from utils.csv_builder import create_csv
+from keras.preprocessing.image import ImageDataGenerator
+
 
 SEED = 1234
 tf.random.set_seed(SEED)
@@ -10,24 +12,8 @@ tf.random.set_seed(SEED)
 # Get current working directory
 cwd = os.getcwd()
 
-# Set GPU memory growth
-# Allows to only as much GPU memory as needed
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    try:
-        # Currently, memory growth needs to be the same across GPUs
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-    except RuntimeError as e:
-        print(e)
-
 # ImageDataGenerator
 # ------------------
-
-from keras.preprocessing.image import ImageDataGenerator
-
 apply_data_augmentation = True
 
 # Create training ImageDataGenerator object
@@ -40,7 +26,8 @@ if apply_data_augmentation:
                                         vertical_flip=True,
                                         fill_mode='constant',
                                         cval=0,
-                                        rescale=1. / 255)
+                                        rescale=1. / 255,
+                                        brightness_range=[0.5, 1.5])
 else:
     train_data_gen = ImageDataGenerator(rescale=1. / 255)
 
@@ -57,8 +44,8 @@ dataset_dir = os.path.join(cwd, dataset_relative_dir)
 bs = 8
 
 # img shape
-img_h = 256
-img_w = 256
+img_h = 310
+img_w = 310
 
 num_classes = 20
 
@@ -93,6 +80,7 @@ train_gen = train_data_gen.flow_from_directory(training_dir,
                                                batch_size=bs,
                                                classes=classes,
                                                class_mode='categorical',
+                                               target_size=(img_h, img_w),
                                                shuffle=True,
                                                seed=SEED)  # targets are directly converted into one-hot vectors
 
@@ -102,6 +90,7 @@ valid_gen = valid_data_gen.flow_from_directory(validation_dir,
                                                batch_size=bs,
                                                classes=classes,
                                                class_mode='categorical',
+                                               target_size=(img_h, img_w),
                                                shuffle=False,
                                                seed=SEED)
 
@@ -111,6 +100,7 @@ test_gen = test_data_gen.flow_from_directory(test_dir,
                                              batch_size=bs,
                                              classes=classes,
                                              class_mode='categorical',
+                                             target_size=(img_h, img_w),
                                              shuffle=False,
                                              seed=SEED)
 
@@ -198,7 +188,7 @@ training = False
 # -!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!
 
 
-weigth_file = "trained_model/trained_model.ckpt"
+weigth_file = "trained_model/trained_model-BRIGTH.ckpt"
 if training:
     # Create Model instance
     model = CNNClassifier(depth=depth,
@@ -206,7 +196,7 @@ if training:
                           num_classes=num_classes)
 
     # Build Model (Required)
-    model.build(input_shape=(8, img_h, img_w, 3))
+    model.build(input_shape=(None, img_h, img_w, 3))
     loss = tf.keras.losses.CategoricalCrossentropy()
     lr = 1e-3
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
@@ -217,18 +207,18 @@ if training:
 
     callbacks = []
 
-    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath= weigth_file,
+    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath=weigth_file,
                                                        save_weights_only=True,
                                                        verbose=1)  # False to save the model directly
     callbacks.append(ckpt_callback)
 
-    early_stop = True
+    early_stop = False
     if early_stop:
-        es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
+        es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=15)
         callbacks.append(es_callback)
 
     model.fit(x=train_dataset,
-              epochs=100,  # set repeat in training dataset
+              epochs=35,  # set repeat in training dataset
               steps_per_epoch=len(train_gen),
               validation_data=valid_dataset,
               validation_steps=len(valid_gen),
@@ -254,7 +244,7 @@ else:
         test_image = os.path.join(path, 'data/New_Classification_Dataset/test/')
         test_image = os.path.join(test_image, file)
         img = Image.open(test_image).convert('RGB')
-        img = img.resize((256, 256))
+        img = img.resize((img_h, img_w))
         arr = np.expand_dims(np.array(img), 0)
 
         out_softmax = model.predict(x=arr / 255.)
