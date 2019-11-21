@@ -5,17 +5,14 @@ classes = ['airplanes', 'bear', 'calculator', 'computer-monitor', 'fireworks', '
            'laptop', 'lightbulb', 'lightning', 'mountain-bike', 'owl', 'school-bus', 'sheet-music', 'skyscraper',
            'sword', 't-shirt', 'waterfall', 'wine-bottle']
 
-path = os.getcwd()
 
-print(path)
-
-dataset_dir = os.path.join(path, 'data/Classification_Dataset')
+dataset_dir = "../data/Classification_Dataset"
 # Sub-directories
 test_path = os.path.join(dataset_dir, "test")
 training_path = os.path.join(dataset_dir, "training")
 
 
-dst_dataset_dir = os.path.join(path, "data/New_Classification_Dataset")
+dst_dataset_dir = "../data/New_Classification_Dataset"
 
 # Sub-directories
 dst_test_path = os.path.join(dst_dataset_dir, "test")
@@ -84,6 +81,3 @@ except OSError:
     print("Failed")
 else:
     print("Folder created...")
-
-for my_class in classes:
-    class_dir = os.path.join(dataset_dir, my_class)

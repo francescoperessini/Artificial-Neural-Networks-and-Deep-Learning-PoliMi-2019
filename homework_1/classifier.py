@@ -2,9 +2,8 @@ import tensorflow as tf
 import numpy as np
 import os
 from PIL import Image
-from utils.csv_builder import create_csv
 from keras.preprocessing.image import ImageDataGenerator
-
+from homework_1.csv_builder import create_csv
 
 SEED = 1234
 tf.random.set_seed(SEED)
@@ -18,16 +17,17 @@ apply_data_augmentation = True
 
 # Create training ImageDataGenerator object
 if apply_data_augmentation:
-    train_data_gen = ImageDataGenerator(rotation_range=10,
+    train_data_gen = ImageDataGenerator(rotation_range=20,
                                         width_shift_range=10,
                                         height_shift_range=10,
                                         zoom_range=0.3,
                                         horizontal_flip=True,
-                                        vertical_flip=True,
-                                        fill_mode='constant',
+                                        vertical_flip=False,
+                                        fill_mode='nearest',
                                         cval=0,
                                         rescale=1. / 255,
-                                        brightness_range=[0.5, 1.5])
+                                        brightness_range=[0.5, 1.5],
+                                        shear_range=0.7)
 else:
     train_data_gen = ImageDataGenerator(rescale=1. / 255)
 
@@ -37,15 +37,17 @@ test_data_gen = ImageDataGenerator(rescale=1. / 255)
 
 # Create generators to read images from dataset directory
 # -------------------------------------------------------
-dataset_relative_dir = 'data/New_Classification_Dataset'
-dataset_dir = os.path.join(cwd, dataset_relative_dir)
+# dataset_relative_dir = "../input/New_Classification_Dataset"
+# dataset_dir = dataset_relative_dir
+
+dataset_test_dir = os.path.join(cwd, "../homework_1/data/New_Classification_Dataset")
 
 # Batch size
 bs = 8
 
 # img shape
-img_h = 310
-img_w = 310
+img_h = 300
+img_w = 300
 
 num_classes = 20
 
@@ -75,7 +77,7 @@ else:
     classes = None
 
 # Training
-training_dir = os.path.join(dataset_dir, 'training')
+training_dir = os.path.join(dataset_test_dir, 'training')
 train_gen = train_data_gen.flow_from_directory(training_dir,
                                                batch_size=bs,
                                                classes=classes,
@@ -85,7 +87,7 @@ train_gen = train_data_gen.flow_from_directory(training_dir,
                                                seed=SEED)  # targets are directly converted into one-hot vectors
 
 # Validation
-validation_dir = os.path.join(dataset_dir, 'validation')
+validation_dir = os.path.join(dataset_test_dir, 'validation')
 valid_gen = valid_data_gen.flow_from_directory(validation_dir,
                                                batch_size=bs,
                                                classes=classes,
@@ -93,16 +95,6 @@ valid_gen = valid_data_gen.flow_from_directory(validation_dir,
                                                target_size=(img_h, img_w),
                                                shuffle=False,
                                                seed=SEED)
-
-# Test
-test_dir = os.path.join(dataset_dir, 'test')
-test_gen = test_data_gen.flow_from_directory(test_dir,
-                                             batch_size=bs,
-                                             classes=classes,
-                                             class_mode='categorical',
-                                             target_size=(img_h, img_w),
-                                             shuffle=False,
-                                             seed=SEED)
 
 # Create Dataset objects
 # ----------------------
@@ -123,15 +115,6 @@ valid_dataset = tf.data.Dataset.from_generator(lambda: valid_gen,
 
 # Repeat
 valid_dataset = valid_dataset.repeat()
-
-# Test
-# ----
-test_dataset = tf.data.Dataset.from_generator(lambda: test_gen,
-                                              output_types=(tf.float32, tf.float32),
-                                              output_shapes=([None, img_h, img_w, 3], [None, num_classes]))
-
-# Repeat
-test_dataset = valid_dataset.repeat()
 
 
 # Create convolutional block
@@ -170,6 +153,7 @@ class CNNClassifier(tf.keras.Model):
         self.flatten = tf.keras.layers.Flatten()
         self.classifier = tf.keras.Sequential()
         self.classifier.add(tf.keras.layers.Dense(units=512, activation='relu'))
+        self.classifier.add(tf.keras.layers.Dropout(0.5))
         self.classifier.add(tf.keras.layers.Dense(units=num_classes, activation='softmax'))
 
     def call(self, inputs):
@@ -179,79 +163,59 @@ class CNNClassifier(tf.keras.Model):
         return x
 
 
-# Set to True to Train
-# Set to False to Evaluate
-# -!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!
-# -!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!
-training = False
-# -!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!
-# -!-!-!-!-!-!-!-!-!-!-!-!-!-!-!-!
+weight_file = '../data/trained_model.ckpt'
+
+# Create Model instance
+model = CNNClassifier(depth=depth,
+                      start_f=start_f,
+                      num_classes=num_classes)
+
+# Build Model (Required)
+model.build(input_shape=(None, img_h, img_w, 3))
+loss = tf.keras.losses.CategoricalCrossentropy()
+lr = 1e-3
+optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+
+# Compile Model
+metrics = ['accuracy']
+model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+
+callbacks = []
+
+ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath=weight_file,
+                                                   save_weights_only=True,
+                                                   verbose=1)  # False to save the model directly
+callbacks.append(ckpt_callback)
+
+early_stop = True
+if early_stop:
+    es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=15)
+    callbacks.append(es_callback)
+
+model.fit(x=train_dataset,
+          epochs=1,  # set repeat in training dataset
+          steps_per_epoch=len(train_gen),
+          validation_data=valid_dataset,
+          validation_steps=len(valid_gen),
+          callbacks=callbacks)
 
 
-weigth_file = "trained_model/trained_model-BRIGTH.ckpt"
-if training:
-    # Create Model instance
-    model = CNNClassifier(depth=depth,
-                          start_f=start_f,
-                          num_classes=num_classes)
+dataset_test_dir = "../homework_1/data/New_Classification_Dataset/test"
+sub_files = os.listdir(dataset_test_dir)
 
-    # Build Model (Required)
-    model.build(input_shape=(None, img_h, img_w, 3))
-    loss = tf.keras.losses.CategoricalCrossentropy()
-    lr = 1e-3
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+results = {}
 
-    # Compile Model
-    metrics = ['accuracy']
-    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+for file in sub_files:
+    test_image = os.path.join(dataset_test_dir, file)
+    img = Image.open(test_image).convert('RGB')
+    img = img.resize((img_h, img_w))
+    arr = np.expand_dims(np.array(img), 0)
 
-    callbacks = []
+    out_softmax = model.predict(x=arr / 255.)
 
-    ckpt_callback = tf.keras.callbacks.ModelCheckpoint(filepath=weigth_file,
-                                                       save_weights_only=True,
-                                                       verbose=1)  # False to save the model directly
-    callbacks.append(ckpt_callback)
+    predicted_class = tf.argmax(out_softmax, 1)
 
-    early_stop = False
-    if early_stop:
-        es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=15)
-        callbacks.append(es_callback)
+    class_name = predicted_class.numpy()[0]
+    results[file] = class_name
 
-    model.fit(x=train_dataset,
-              epochs=35,  # set repeat in training dataset
-              steps_per_epoch=len(train_gen),
-              validation_data=valid_dataset,
-              validation_steps=len(valid_gen),
-              callbacks=callbacks)
-
-else:
-    model = CNNClassifier(depth=depth,
-                          start_f=start_f,
-                          num_classes=num_classes)
-
-    # Load Weights
-    model.load_weights(weigth_file)
-
-    # Get all the images in the test set, resize them and predict the label
-    path = os.getcwd()
-
-    dataset_dir = os.path.join(path, 'data/New_Classification_Dataset/test')
-    sub_files = os.listdir(dataset_dir)
-
-    results = {}
-
-    for file in sub_files:
-        test_image = os.path.join(path, 'data/New_Classification_Dataset/test/')
-        test_image = os.path.join(test_image, file)
-        img = Image.open(test_image).convert('RGB')
-        img = img.resize((img_h, img_w))
-        arr = np.expand_dims(np.array(img), 0)
-
-        out_softmax = model.predict(x=arr / 255.)
-
-        predicted_class = tf.argmax(out_softmax, 1)
-
-        class_name = predicted_class.numpy()[0]
-        results[file] = class_name
-
-    create_csv(results)
+create_csv(results)
