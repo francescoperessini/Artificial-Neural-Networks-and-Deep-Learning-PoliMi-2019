@@ -6,13 +6,13 @@ classes = ['airplanes', 'bear', 'calculator', 'computer-monitor', 'fireworks', '
            'sword', 't-shirt', 'waterfall', 'wine-bottle']
 
 
-dataset_dir = "../data/Classification_Dataset"
+dataset_dir = "../homework_1/data/Classification_Dataset/"
 # Sub-directories
 test_path = os.path.join(dataset_dir, "test")
 training_path = os.path.join(dataset_dir, "training")
 
 
-dst_dataset_dir = "../data/New_Classification_Dataset"
+dst_dataset_dir = "../homework_1/data/New_Classification_Dataset/"
 
 # Sub-directories
 dst_test_path = os.path.join(dst_dataset_dir, "test")
