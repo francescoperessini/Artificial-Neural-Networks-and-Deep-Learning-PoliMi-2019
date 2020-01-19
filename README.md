@@ -8,7 +8,7 @@
 </p>
 
 
-## Challanges ##
+## Challenges ##
 
 **homework_1**: [Image Classification](https://www.kaggle.com/c/ann-and-dl-image-classification)
 
